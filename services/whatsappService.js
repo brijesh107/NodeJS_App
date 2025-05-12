@@ -58,25 +58,11 @@ const createClientSession = async (clientId, io) => {
 
     const tableInfo = {
         table: 'wsp_sessions',
-        session_column: 'session_name',
-        data_column: 'data',
-        updated_at_column: 'updated_at'
+        session_name: 'session_name',
+        data: 'data'        
     }
 
-    async function ensureSessionTableExists(pool) {
-        const result = await pool.request().query(`
-            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'wsp_sessions')
-            BEGIN
-                CREATE TABLE wsp_sessions (
-                    session_name NVARCHAR(255) PRIMARY KEY,
-                    data NVARCHAR(MAX) NOT NULL,
-                    updated_at DATETIME DEFAULT GETDATE()
-                )
-            END
-        `);
-    }
 
-    await ensureSessionTableExists(pool);
     const store = new MssqlStore({ pool: pool, tableInfo: tableInfo });
 
     try {
@@ -155,13 +141,13 @@ const createClientSession = async (clientId, io) => {
         client.on('ready', async () => {
             console.log(`Client ready for ${clientId}`);
             readyClientsMap.set(clientId, client);
-
+            console.log("client", client);
             const token = jwt.sign({
                 clientId,
                 mobile: client.info?.wid?.user || 'unknown',
                 timestamp: Date.now()
             }, process.env.MY_SECRET_KEY, { expiresIn: '30d' });
-            console.log("token",token);
+            console.log("token", token);
 
             io.emit('ready', {
                 clientId,

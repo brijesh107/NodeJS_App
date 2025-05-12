@@ -1,4 +1,4 @@
-const { JsonWebTokenError } = require("jsonwebtoken");
+const { jwt } = require("jsonwebtoken");
 const { checkClientStatus } = require("../Controllers/messageController");
 const { createClientSession, readyClientsMap, clientInstances } = require("../services/whatsappService");
 
@@ -10,7 +10,7 @@ module.exports = async function handleSocketEvents(socket, io) {
             const client = checkClientStatus(clientId);
             if (client.ready) {
                 console.log("Using existing client:", clientId);
-                const token = JsonWebTokenError.sign({
+                const token = jwt.sign({
                     clientId,
                     mobile: client.info?.wid?.user || 'unknown',
                     timestamp: Date.now()

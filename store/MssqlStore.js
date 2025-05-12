@@ -10,26 +10,33 @@ class MssqlStore {
     }
 
     async sessionExists(options) {
-        const request = this.pool.request();
-        request.input('session', sql.NVarChar, options.session);
-        const result = await request.query(
-            `SELECT COUNT([${this.tableInfo.session_column}]) as count 
+        try {
+            console.log("options", options);
+            const request = this.pool.request();
+            request.input('session_name', sql.NVarChar, options.session);
+            const result = await request.query(
+                `SELECT COUNT([${this.tableInfo.session_name}]) as count 
              FROM [${this.tableInfo.table}] 
-             WHERE [${this.tableInfo.session_column}] = @session`
-        );
-        return result.recordset[0].count > 0;
+             WHERE [${this.tableInfo.session_name}] = @session_name`
+            );
+            return result.recordset[0].count > 0;
+        } catch (error) {
+            console.log("error sessionExists", error);
+        }
     }
 
     async save(options) {
+
+        console.log("options", options);
         const request = this.pool.request();
         const fileBuffer = fs.readFileSync(`${options.session}.zip`);
 
         // Check if the session already exists
-        request.input('session', sql.NVarChar, options.session);
+        request.input('session_name', sql.NVarChar, options.session_name);
         let result = await request.query(
-            `SELECT COUNT([${this.tableInfo.session_column}]) as count 
+            `SELECT COUNT([${this.tableInfo.session_name}]) as count 
              FROM [${this.tableInfo.table}] 
-             WHERE [${this.tableInfo.session_column}] = @session`
+             WHERE [${this.tableInfo.session_name}] = @session_name`
         );
 
         request.input('data', sql.VarBinary, fileBuffer);
@@ -38,16 +45,15 @@ class MssqlStore {
             // Insert new session
             await request.query(
                 `INSERT INTO [${this.tableInfo.table}] 
-                 ([${this.tableInfo.session_column}], [${this.tableInfo.data_column}]) 
-                 VALUES (@session, @data)`
+                 ([${this.tableInfo.session_name}], [${this.tableInfo.data}]) 
+                 VALUES (@session_name, @data)`
             );
         } else {
             // Update existing session
             await request.query(
                 `UPDATE [${this.tableInfo.table}] 
-                 SET [${this.tableInfo.data_column}] = @data, 
-                     [${this.tableInfo.updated_at_column}] = CURRENT_TIMESTAMP 
-                 WHERE [${this.tableInfo.session_column}] = @session`
+                 SET [${this.tableInfo.data}] = @data                     
+                 WHERE [${this.tableInfo.session_name}] = @session_name`
             );
         }
     }
@@ -56,13 +62,13 @@ class MssqlStore {
         const request = this.pool.request();
         request.input('session', sql.NVarChar, options.session);
         const result = await request.query(
-            `SELECT [${this.tableInfo.data_column}] 
+            `SELECT [${this.tableInfo.data}] 
              FROM [${this.tableInfo.table}] 
-             WHERE [${this.tableInfo.session_column}] = @session`
+             WHERE [${this.tableInfo.session_name}] = @session`
         );
 
         if (result.recordset.length) {
-            fs.writeFileSync(options.path, result.recordset[0][this.tableInfo.data_column]);
+            fs.writeFileSync(options.path, result.recordset[0][this.tableInfo.data]);
         }
     }
 
@@ -71,7 +77,7 @@ class MssqlStore {
         request.input('session', sql.NVarChar, options.session);
         await request.query(
             `DELETE FROM [${this.tableInfo.table}] 
-             WHERE [${this.tableInfo.session_column}] = @session`
+             WHERE [${this.tableInfo.session_name}] = @session`
         );
     }
 }
