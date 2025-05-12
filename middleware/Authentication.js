@@ -29,8 +29,8 @@ const jwt = require("jsonwebtoken")
         if (secretKey === process.env.MY_SECRET_KEY) {
 
             if (token === splitUserToken) {
-                const { DealerId} = jwt.verify(token, process.env.MY_SECRET_KEY);
-                req.sessionData = { DealerId: DealerId }
+                const { clientId} = jwt.verify(token, process.env.MY_SECRET_KEY);
+                req.sessionData = { clientId: clientId }
                 next();
             } else {
                 res.status(401).json({ message: "Token Not Verify / Please Login to Access The resources" });

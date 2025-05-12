@@ -59,9 +59,9 @@ const sendMessage = async (req, res) => {
 };
 
 const sendBulkMessages = async (req, res) => {
-  const { clientId, recipients = [] } = req.body;
-
-  if (!clientId || recipients.length === 0) {
+  const { recipients = [] } = req.body;
+  const clientId = req.sessionData.clientId; //  Get clientId from JWT middleware
+  if (recipients.length === 0) {
     return res.status(400).json({ error: 'Missing parameters' });
   }
 
@@ -72,9 +72,6 @@ const sendBulkMessages = async (req, res) => {
   const estimatedDelayMs = (totalBatches - 1) * delayMs;
   const estimatedSeconds = Math.round(estimatedDelayMs / 1000);
   const estimatedMinutes = (estimatedSeconds / 60).toFixed(2);
-
-  console.log(`Estimated time to send ${recipients.length} messages: ${estimatedSeconds} seconds (${estimatedMinutes} minutes)`);
-
   const startTime = Date.now();
 
   try {
