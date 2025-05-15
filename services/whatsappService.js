@@ -1,53 +1,20 @@
-const { Client, RemoteAuth } = require('whatsapp-web.js')
+const { Client, RemoteAuth } = require('../funcation');
 const jwt = require('jsonwebtoken');
-const formatPhoneNumber = require('../utils/phoneFormatter');
-const clientInstances = {};
-const readyClientsMap = new Map();
-const messageQueue = {};
-const fs = require('fs');
-const path = require('path');
-const { pool } = require('../config/database');
+const { pool, tableInfo } = require('../config/database');
 const MssqlStore = require('../store/MssqlStore');
+const { cleanCacheDirectories, processMessageQueue } = require('../utils/helper');
+const puppeteerConfig = require('../utils/puppeteerConfig');
 
-// Very important - set these environment variables before anything else
+// Clean up cache directories at the top
+cleanCacheDirectories();
+
+// Environment setup
 process.env.WWEBJS_CACHE_PATH = 'false';
 process.env.WA_AUTORUN = 'false';
 
-// Remove any lingering local session/cache dirs
-const cacheDirectories = [
-    path.join(process.cwd(), '.wwebjs_auth'),
-    path.join(process.cwd(), '.wwebjs_cache'),
-    path.join(process.cwd(), 'session-')
-];
-
-cacheDirectories.forEach(dir => {
-    try {
-        if (fs.existsSync(dir)) {
-            console.log(`Removing cache directory: ${dir}`);
-            fs.rmSync(dir, { recursive: true, force: true });
-        }
-    } catch (err) {
-        console.error(`Error removing directory ${dir}:`, err);
-    }
-});
-
-// Process queued messages
-const processMessageQueue = async (clientId, client) => {
-    if (!messageQueue[clientId]) return;
-    for (const { number, message } of messageQueue[clientId]) {
-        const formattedNumber = formatPhoneNumber(number);
-        const chatId = `${formattedNumber}@c.us`;
-        try {
-            await client.sendMessage(chatId, message);
-            console.log(`Queued message sent to ${number}`);
-        } catch (err) {
-            console.error(`Failed to send queued message to ${number}: ${err.message}`);
-        }
-    }
-    delete messageQueue[clientId];
-};
-
-
+const clientInstances = {};
+const readyClientsMap = new Map();
+const messageQueue = {};
 
 const createClientSession = async (clientId, io) => {
     // If client is already ready, return it immediately
@@ -55,15 +22,7 @@ const createClientSession = async (clientId, io) => {
     if (clientInstances[clientId]) return clientInstances[clientId];
 
     let client;
-
-    const tableInfo = {
-        table: 'wsp_sessions',
-        session_name: 'session_name',
-        data: 'data'        
-    }
-
-
-    const store = new MssqlStore({ pool: pool, tableInfo: tableInfo });
+    const store = new MssqlStore({ pool: pool, tableInfo: tableInfo, Socket: io });
 
     try {
         client = new Client({
@@ -72,39 +31,15 @@ const createClientSession = async (clientId, io) => {
                 store,
                 backupSyncIntervalMs: 86400000, // once every 24 hours
                 dataPath: '/tmp/my/whatsapp/sessions', // ❌ Avoid current folder
-
             }),
-            puppeteer: {
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--disable-gpu',
-                    '--disable-features=site-per-process',
-                    '--disable-extensions',
-                    '--disable-infobars',
-                    '--disable-application-cache',
-                    '--disk-cache-size=0',
-                ],
-                timeout: 60000, // increase timeout
-                // These options prevent automatic cache creation:
-                webVersionCache: {
-                    type: 'none' // Completely disable web version caching
-                },
-                // Add this to prevent any local file storage:
-                cacheEnabled: false,
-                // Disable session file writing:
-                sessionData: null
-            },
+            puppeteer: puppeteerConfig
         });
 
-        client.on('INITIALIZING', (qr) => {
+
+        client.on('INITIALIZING', () => {
             console.log("INITIALIZING");
         });
+
         client.on('qr', (qr) => {
             console.log("QR Received !");
             io.emit('qr', { clientId, qr });
@@ -133,7 +68,7 @@ const createClientSession = async (clientId, io) => {
             }
         });
 
-        client.on('loading_screen', (qr) => {
+        client.on('loading_screen', () => {
             console.log("loading_screen");
             io.emit('loading_screen', { isLoading: true })
         });
@@ -147,8 +82,6 @@ const createClientSession = async (clientId, io) => {
                 mobile: client.info?.wid?.user || 'unknown',
                 timestamp: Date.now()
             }, process.env.MY_SECRET_KEY, { expiresIn: '30d' });
-            console.log("token", token);
-
             io.emit('ready', {
                 clientId,
                 token,
@@ -156,8 +89,12 @@ const createClientSession = async (clientId, io) => {
                 user: client.info?.wid?.user || 'Unknown'
             });
 
-            await processMessageQueue(clientId, client);
+            await processMessageQueue(clientId, client , messageQueue);
         });
+
+        client.on("remote_session_saved", () => {
+            console.log("remote_session_saved !");
+        })
 
         client.on('disconnected', async (reason) => {
             console.log(`Client disconnected: ${clientId}`);
@@ -169,6 +106,7 @@ const createClientSession = async (clientId, io) => {
         await client.initialize();
         clientInstances[clientId] = client;
         return client;
+
     } catch (error) {
         console.error(`Failed to initialize client [${clientId}]:`, error.message);
         if (error.code === 'ENOENT') {

@@ -33,4 +33,10 @@ const connectDB = async () => {
   }
 };
 
-module.exports = { pool, connectDB };
+const tableInfo = {
+  table: 'wsp_sessions',
+  session_name: 'session_name',
+  data: 'data'
+}
+
+module.exports = { pool, connectDB, tableInfo };
