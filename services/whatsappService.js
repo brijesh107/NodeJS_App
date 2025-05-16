@@ -1,4 +1,4 @@
-const { Client, RemoteAuth } = require('../funcation');
+const { Client, RemoteAuth } = require('../Whatapp_web_js/');
 const jwt = require('jsonwebtoken');
 const { pool, tableInfo } = require('../config/database');
 const MssqlStore = require('../store/MssqlStore');
@@ -17,9 +17,11 @@ const readyClientsMap = new Map();
 const messageQueue = {};
 
 const createClientSession = async (clientId, io) => {
-    // If client is already ready, return it immediately
-    if (readyClientsMap.has(clientId)) return readyClientsMap.get(clientId);
-    if (clientInstances[clientId]) return clientInstances[clientId];
+
+    // console.log('readyClientsMap , clientInstances', readyClientsMap, clientInstances);
+    // // If client is already ready, return it immediately
+    // if (readyClientsMap.has(clientId)) return readyClientsMap.get(clientId);
+    // if (clientInstances[clientId]) return clientInstances[clientId];
 
     let client;
     const store = new MssqlStore({ pool: pool, tableInfo: tableInfo, Socket: io });
@@ -77,6 +79,9 @@ const createClientSession = async (clientId, io) => {
             console.log(`Client ready for ${clientId}`);
             readyClientsMap.set(clientId, client);
             console.log("client", client);
+            io.emit("sessiondata", {
+                client
+            })
             const token = jwt.sign({
                 clientId,
                 mobile: client.info?.wid?.user || 'unknown',
@@ -89,7 +94,7 @@ const createClientSession = async (clientId, io) => {
                 user: client.info?.wid?.user || 'Unknown'
             });
 
-            await processMessageQueue(clientId, client , messageQueue);
+            await processMessageQueue(clientId, client, messageQueue);
         });
 
         client.on("remote_session_saved", () => {
@@ -108,8 +113,9 @@ const createClientSession = async (clientId, io) => {
         return client;
 
     } catch (error) {
-        console.error(`Failed to initialize client [${clientId}]:`, error.message);
-        if (error.code === 'ENOENT') {
+        console.error(`Failed to initialize client [${clientId}]:`, error);
+        if (error.code === 'ENOENT' || error.message?.includes("invalid signature")) {
+            await store.delete({ session: clientId }); // if you have a method in MssqlStore to delete session
             delete clientInstances[clientId];
             readyClientsMap.delete(clientId);
             return await createClientSession(clientId, io);

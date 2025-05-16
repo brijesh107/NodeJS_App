@@ -307,7 +307,6 @@ class Client extends EventEmitter {
         await page.evaluateOnNewDocument(() => {
             const originalError = Error;
             window.originalError = originalError;
-            //eslint-disable-next-line no-global-assign
             Error = function (message) {
                 const error = new originalError(message);
                 const originalStack = error.stack;
@@ -929,9 +928,7 @@ class Client extends EventEmitter {
         }
 
         const newMessage = await this.pupPage.evaluate(async (chatId, message, options, sendSeen) => {
-            const chatWid = window.Store.WidFactory.createWid(chatId);
-            const chat = await window.Store.Chat.find(chatWid);
-
+           const chat = await window.Store.Chat.find(chatId);
 
             if (sendSeen) {
                 await window.WWebJS.sendSeen(chatId);

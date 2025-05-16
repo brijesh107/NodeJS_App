@@ -4,7 +4,6 @@
 
 exports.ExposeLegacyAuthStore = (moduleRaidStr) => {
     eval('var moduleRaid = ' + moduleRaidStr);
-    // eslint-disable-next-line no-undef
     window.mR = moduleRaid();
     window.AuthStore = {};
     window.AuthStore.AppState = window.mR.findModule('Socket')[0].Socket;

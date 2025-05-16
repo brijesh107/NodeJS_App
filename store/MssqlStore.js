@@ -70,6 +70,7 @@ class MssqlStore {
              WHERE [${this.tableInfo.session_name}] = @session_name`
         );
 
+        console.log("Store Session Data ",result.recordset[0][this.tableInfo.data]);
         if (result.recordset.length) {
             fs.writeFileSync(options.path, result.recordset[0][this.tableInfo.data]);
         }

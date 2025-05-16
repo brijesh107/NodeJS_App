@@ -1,6 +1,6 @@
 // utils/puppeteerConfig.js
 module.exports = {
-    headless: true,
+    headless: false,
     args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
